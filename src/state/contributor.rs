@@ -1,4 +1,4 @@
-use pinocchio::pubkey::Pubkey;
+use pinocchio::Address;
 
 #[repr(C)]
 pub struct Contributor {
