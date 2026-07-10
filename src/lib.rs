@@ -19,7 +19,7 @@ pub fn process_instruction(
 
     match FundraiserInstructions::try_from(discriminator)? {
         FundraiserInstructions::Initialize => instructions::process_initialize(accounts, data),
-        FundraiserInstructions::Contribute => Ok(()),
+        FundraiserInstructions::Contribute => instructions::process_contribute(accounts, data),
         FundraiserInstructions::CheckContributions => Ok(()),
         FundraiserInstructions::Refund => Ok(()),
     }

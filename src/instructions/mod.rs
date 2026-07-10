@@ -2,6 +2,8 @@ use pinocchio::error::ProgramError;
 
 pub mod initialize;
 pub use initialize::process_initialize;
+pub mod contribute;
+pub use contribute::process_contribute;
 
 pub enum FundraiserInstructions {
     Initialize,
