@@ -18,7 +18,6 @@ pub fn process_contribute(accounts: &[AccountView], data: &[u8]) -> ProgramResul
         return Err(ProgramError::MissingRequiredSignature);
     }
 
-    // data: amount (8 bytes) + contributor_account_bump (1 byte)
     if data.len() < 9 {
         return Err(ProgramError::InvalidInstructionData);
     }
@@ -27,24 +26,24 @@ pub fn process_contribute(accounts: &[AccountView], data: &[u8]) -> ProgramResul
 
     let id_bytes: [u8; 32] = crate::ID.as_ref().try_into().unwrap();
 
-    // read fundraiser state
-    let mut fr_data = fundraiser.try_borrow_mut()?;
-    let fr_state: &mut Fundraiser = unsafe { &mut *(fr_data.as_mut_ptr() as *mut Fundraiser) };
+    // --- READ-ONLY CHECKS FIRST (borrow, read, drop before any CPI) ---
+    let (amount_to_raise, deadline) = {
+        let fr_data = fundraiser.try_borrow()?;
+        let fr_state: &Fundraiser = unsafe { &*(fr_data.as_ptr() as *const Fundraiser) };
+        let clock = Clock::get()?;
+        let deadline = fr_state.time_started + (fr_state.duration as i64) * 86_400;
+        (fr_state.amount_to_raise, deadline)
+    };
 
-    // check deadline: time_started + duration days must not have passed
     let clock = Clock::get()?;
-    let deadline = fr_state.time_started + (fr_state.duration as i64) * 86_400;
     if clock.unix_timestamp > deadline {
-        return Err(ProgramError::Custom(1)); // fundraiser expired
+        return Err(ProgramError::Custom(1));
     }
-
-    // check per-person cap: 10% of amount_to_raise
-    let max_contribution = fr_state.amount_to_raise / 10;
+    let max_contribution = amount_to_raise / 10;
     if amount > max_contribution {
-        return Err(ProgramError::Custom(2)); // exceeds max contribution
+        return Err(ProgramError::Custom(2));
     }
 
-    // verify contributor PDA
     let expected_ca = derive_address(
         &[b"contributor", fundraiser.address().as_ref(), contributor.address().as_ref()],
         Some(ca_bump),
@@ -54,7 +53,7 @@ pub fn process_contribute(accounts: &[AccountView], data: &[u8]) -> ProgramResul
         return Err(ProgramError::InvalidSeeds);
     }
 
-    // create contributor_account if it doesn't exist yet (lamports == 0 means uninitialized)
+    // --- CPIs (no data borrows held across these) ---
     if contributor_account.lamports() == 0 {
         let bump_arr = [ca_bump];
         let seeds = [
@@ -75,7 +74,6 @@ pub fn process_contribute(accounts: &[AccountView], data: &[u8]) -> ProgramResul
         .invoke_signed(&[signer])?;
     }
 
-    // transfer tokens contributor -> vault
     Transfer {
         from: contributor_ata,
         to: vault,
@@ -84,12 +82,14 @@ pub fn process_contribute(accounts: &[AccountView], data: &[u8]) -> ProgramResul
     }
     .invoke()?;
 
-    // update contributor's tracked amount
+    // --- WRITES LAST, fresh borrows after all CPIs are done ---
     let mut ca_data = contributor_account.try_borrow_mut()?;
     let ca_state: &mut Contributor = unsafe { &mut *(ca_data.as_mut_ptr() as *mut Contributor) };
     ca_state.amount = ca_state.amount.checked_add(amount).ok_or(ProgramError::ArithmeticOverflow)?;
+    drop(ca_data);
 
-    // update fundraiser's current_amount
+    let mut fr_data = fundraiser.try_borrow_mut()?;
+    let fr_state: &mut Fundraiser = unsafe { &mut *(fr_data.as_mut_ptr() as *mut Fundraiser) };
     fr_state.current_amount = fr_state.current_amount.checked_add(amount).ok_or(ProgramError::ArithmeticOverflow)?;
 
     Ok(())
