@@ -4,7 +4,8 @@ pub mod initialize;
 pub use initialize::process_initialize;
 pub mod contribute;
 pub use contribute::process_contribute;
-
+pub mod check_contributions;
+pub use check_contributions::process_check_contributions;
 pub enum FundraiserInstructions {
     Initialize,
         Contribute,
