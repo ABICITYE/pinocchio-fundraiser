@@ -21,6 +21,6 @@ pub fn process_instruction(
         FundraiserInstructions::Initialize => instructions::process_initialize(accounts, data),
         FundraiserInstructions::Contribute => instructions::process_contribute(accounts, data),
         FundraiserInstructions::CheckContributions => instructions::process_check_contributions(accounts, data),
-        FundraiserInstructions::Refund => Ok(()),
+        FundraiserInstructions::Refund => instructions::process_refund(accounts, data),
     }
 }

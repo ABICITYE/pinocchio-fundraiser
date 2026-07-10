@@ -6,6 +6,8 @@ pub mod contribute;
 pub use contribute::process_contribute;
 pub mod check_contributions;
 pub use check_contributions::process_check_contributions;
+pub mod refund;
+pub use refund::process_refund;
 pub enum FundraiserInstructions {
     Initialize,
         Contribute,
